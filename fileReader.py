@@ -8,16 +8,16 @@ def read_files(filename_queue):
     reader = tf.TextLineReader()
     key, value = reader.read(filename_queue)
 
-    record_defaults = [[5000]] * 5
+    record_defaults = [[4096], [4096], [4096]]
     raw_data = tf.decode_csv(value, record_defaults=record_defaults, field_delim=',')
 
     return raw_data
 
-def input_pipeline(filenames, num_line, num_epochs=None):
+def input_pipeline(filenames, num_line, num_epochs=None, shuffle=False):
     # tf용 file directory load가 있다.
     fileList = glob.glob(filenames)
     fileList.sort()
-    filename_queue = tf.train.string_input_producer(fileList, num_epochs=num_epochs, shuffle=False, name="filename_queue")
+    filename_queue = tf.train.string_input_producer(fileList, num_epochs=num_epochs, shuffle=shuffle, name="filename_queue")
     raw_data = read_files(filename_queue)
 
     x, y = tf.train.batch([raw_data[:-1], [raw_data[-1]]], batch_size=num_line)
@@ -43,24 +43,31 @@ def reshape_LSTM_input(dataX, dataY, num_data, sequence_length):
 
     return x, y
 
-# if __name__ == "__main":
-#     pass
-# else:
-#
-# batch_size = 3
-# sequence_length = 2
-# total_epochs = 1
-#
-#
-# rawX, rawY = input_pipeline("./[ab].txt", num_line=batch_size, num_epochs=total_epochs)
-#
+batch_size = 1
+sequence_length = 2
+total_epochs = 1
+
+
+# rawX, rawY = input_pipeline("./data/data[0-9].txt", num_line=batch_size, num_epochs=total_epochs)
 # trainX, trainY = reshape_LSTM_input(rawX, rawY, num_data=batch_size, sequence_length=sequence_length)
-#
-# sess = tf.Session()
-# sess.run(tf.local_variables_initializer())
-# sess.run(tf.global_variables_initializer())
-# coord = tf.train.Coordinator()
-# threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+
+sess = tf.Session()
+sess.run(tf.local_variables_initializer())
+sess.run(tf.global_variables_initializer())
+coord = tf.train.Coordinator()
+threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+
+list = glob.glob("./data/data[0-9].txt")
+list.sort()
+filename_queue = tf.train.string_input_producer(list, num_epochs=None, shuffle=False, name="filename_queue")
+reader = tf.TextLineReader()
+key, value = reader.read(filename_queue)
+raw_data = tf.decode_csv(value, record_defaults=[[0], [0], [0]], field_delim=',')
+r = tf.train.batch(raw_data, batch_size=1) # raw_data에서 한 set의 data가 생성되어야 하나...
+
+print(sess.run(r)) # 코드 정지되는 부분
+
+# exit(1)
 #
 # try:
 #     while True:
@@ -72,7 +79,7 @@ def reshape_LSTM_input(dataX, dataY, num_data, sequence_length):
 #
 # finally:
 #     print("end")
-#
-# coord.request_stop()
-# coord.join(threads=threads)
-# sess.close()
+
+coord.request_stop()
+coord.join(threads=threads)
+sess.close()

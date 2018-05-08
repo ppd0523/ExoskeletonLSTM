@@ -12,20 +12,21 @@ RNNLayers = 1
 outputDim = 1
 batchSize = 1
 
+training_epoch = 30
 CHECK_POINT_DIR = "testModel2" # directory to save model states
 
 
 
-# raw = np.loadtxt("./data/data0.txt", delimiter=',')
-# row = raw.shape[0]
-# col = raw.shape[1] #col=3
-# trainSize = row-seq_length
-trainSize = 1
+raw = np.loadtxt("./data/data0.txt", delimiter=',')
+row = raw.shape[0]
+col = raw.shape[1] #col=3
+trainSize = row-seq_length
+# trainSize = 1
 
-# x, y = [], []
-# for i in range(trainSize):
-#     x.append(raw[i:i+seq_length])
-#     y.append([raw[i+seq_length][-1]])
+x, y = [], []
+for i in range(trainSize):
+    x.append(raw[i:i+seq_length])
+    y.append([raw[i+seq_length][-1]])
 
 X = tf.placeholder(dtype=tf.float32, shape=[None, seq_length, inputDim], name="trainX")
 Y = tf.placeholder(dtype=tf.float32, shape=[None, outputDim], name="trainY")
@@ -56,66 +57,59 @@ with tf.name_scope("Fully_connected_layer1"):
     tf.summary.histogram("H1", H1)
 
 
-merged = tf.summary.merge_all()
-
 # real data
 targets = tf.placeholder(dtype=tf.float32, shape=[None,outputDim], name="targets")
-
-#
 loss = tf.reduce_mean(tf.squared_difference(H1, Y))
 optimizer = tf.train.AdadeltaOptimizer(learning_rate=1, rho=0.95, epsilon=1e-8).minimize(loss)
-
-
 total = trainSize//batchSize
-
-start_epoch = tf.Variable(0, name="start_epoch")
 last_epoch = tf.Variable(0, name="last_epoch")
-
 global_step = tf.Variable(0, trainable=False)
 
+tf.summary.scalar("loss", loss)
+
+merged = tf.summary.merge_all()
 
 with tf.Session() as sess:
 
     sess.run( tf.global_variables_initializer() )
-    writer = tf.summary.FileWriter("./logs")
-
+    writer = tf.summary.FileWriter("./logs", sess.graph)
     saver = tf.train.Saver()
+    MODEL_PATH = "./model/" + CHECK_POINT_DIR
+
     ######### load ########
-    # checkPoint = tf.train.get_checkpoint_state("./model/"+CHECK_POINT_DIR)
-    # print(checkPoint, "\n\n",checkPoint.model_checkpoint_path)
-    # if checkPoint and checkPoint.model_checkpoint_path:
-    #     try:
-    #         saver.restore(sess, checkPoint.model_checkpoint_path)
-    #         print("loading")
-    #     except:
-    #         print('loading error')
-    # else:
-    #     print("no saved model")
+    checkPoint = tf.train.get_checkpoint_state(MODEL_PATH)
+    if checkPoint and checkPoint.model_checkpoint_path:
+        try:
+            saver.restore(sess, checkPoint.model_checkpoint_path)
+            print("loading")
+        except:
+            print('loading error')
+    else:
+        print("no saved model")
     #######################
-    start = sess.run(last_epoch)
-    sess.run(last_epoch.assign(start + 1))
+
+    start_training = sess.run(last_epoch) + 1
+    end_training = training_epoch + 1
+    for epoch in range(start_training, end_training):
+
+        feed_dict = {X:x, Y:y}
+        _, summary = sess.run([optimizer, merged], feed_dict=feed_dict)
+        cost = sess.run(loss, feed_dict)
+        sess.run(last_epoch.assign(epoch))
+
+
+        print(sess.run(last_epoch))
+        print(cost)
+
+        writer.add_summary(summary, epoch)
+
 
     ######### save ########
-    MODEL_PATH = "./model/"+CHECK_POINT_DIR
     if not os.path.exists(MODEL_PATH):
         os.makedirs(MODEL_PATH)
     saver.save(sess, MODEL_PATH+"/state", global_step=0)
     #######################
 
-
-    # saver.save(sess, "./saved/")
-
-
-
-
-    # for i in range(trainSize):
-    #     _, summary = sess.run([optimizer, merged], feed_dict={X:x, Y:y})
-    #
-    #
-    #     writer.add_summary(summary, 2)
-
-    print(sess.run(start_epoch))
-    print(sess.run(last_epoch))
     # test_predict = sess.run(Y_, feed_dict={X:testX})
     #
     # plt.plot()
